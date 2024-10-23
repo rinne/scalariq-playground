@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScalarIQ Playground</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.7/mode/javascript/javascript.min.js"></script>
+    <script src="./js/lexer.js" defer></script>
+    <script src="./js/parser.js" defer></script>
+    <script src="./js/generator.js" defer></script>
+    <script src="./js/evaluator.js" defer></script>
+    <script src="./js/optimizer.js" defer></script>
+    <script src="./js/scalariq-browser.js" defer></script>
+    <script src="./js/math-calls.js" defer></script>
+    <script src="./js/string-calls.js" defer></script>
+    <script src="./js/time-calls.js" defer></script>
+    <script src="./js/type-calls.js" defer></script>
+    <script src="./js/json-text-input.js" defer></script>
+    <script src="./js/url-text-input.js" defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        .text-box, #result {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+        #compileButton, #evaluateButton, #checkButton, #optimizeButton, #customFunctionCreateButton, #customUrlFunctionCreateButton {
+            display: inline-block;
+            margin: 10px 0;
+            padding: 10px;
+            cursor: pointer;
+        }
+        #evaluateButton:disabled, #checkButton.disabled, #optimizeButton.disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #result {
+            min-height: 50px;
+            border-radius: 5px;
+            padding: 20px;
+        }
+        #compiledOutput {
+            width: 100%;
+        }
+        #editor {
+            width: 100%;
+        }
+        #customFunctionName, #customUrlFunctionName {
+            background-color: transparent;
+            width: 100px;
+        }
+        .jsonTextInput {
+            width: 100px;
+        }
+        .urlTextInput {
+            width: 200px;
+        }
+        .status {
+            font-weight: bold;
+        }
+        footer {
+            margin-top: 20px;
+            font-size: 0.9em;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
+        .checkbox-container {
+            margin: 10px 0;
+        }
+
+        .CodeMirror {
+            height: 150px;
+            min-height: 100px;
+            max-height: 1000px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Region 1: Description -->
+    <section>
+        <h2>Welcome to ScalarIQ Playground</h2>
+        <p>
+            This interactive playground allows you to explore the ScalarIQ language. 
+            Simply enter your ScalarIQ code below, compile it, and evaluate the resulting output.
+            Enjoy.
+        </p>
+    </section>
+
+    <!-- Region 2: User Input with Compile Button -->
+    <section>
+        <div class="text-box" id="inputBox">
+            <textarea id="editor"></textarea>
+        </div>
+        <div>
+          <button id="compileButton">Compile</button>
+          <button id="checkButton" disabled>Check</button>
+          <button id="optimizeButton" disabled>Optimize</button>
+        </div>
+    </section>
+
+    <!-- Region 3: Compiled Output with Evaluate Button -->
+    <section>
+        <div class="text-box" id="outputBox">
+            <textarea id="compiledOutput" readonly></textarea>
+        </div>
+        <div class="checkbox-container" id="checkboxContainer">
+            <!-- Checkbox options will be inserted here dynamically -->
+        </div>
+        <div>
+              Create a custom function
+              <input type="text" class="jsonTextInput" id="customFunctionName"/>
+              <button id="customFunctionCreateButton" disabled>Create</button>
+        </div>
+        <div>
+              Create a custom function
+              <input type="text" class="urlTextInput" id="customUrlFunctionName"/>
+              with URL back-end <input type="text" id="customUrlFunctionUrl"/>
+              <button id="customUrlFunctionCreateButton" disabled>Create</button>
+        </div>
+        <div>
+          <button id="evaluateButton" disabled>Evaluate</button>
+        </div>
+    </section>
+
+    <!-- Region 4: Evaluation Result -->
+    <section id="result">
+        <p id="resultText" class="status"></p>
+    </section>
+
+    <!-- Region 5: Footer -->
+    <footer>
+      <p>
+        Copyright&nbsp;&copy;&nbsp;2024&nbsp;Timo&nbsp;J.&nbsp;Rinne&nbsp;&lt;tri@iki.fi&gt;
+        <br/>
+        ScalarIQ&nbsp;version:&nbsp;<span id="scalariqVersion">?</span>
+        <br/>
+        <a href="https://github.com/rinne/node-scalariq#readme">More&nbsp;about&nbsp;ScalarIQ&nbsp;on&nbsp;GitHub</a>
+      </p>
+    </footer>
+
+    <script>
+	(window.addEventListener('load', () => {
+		let externalFunctionsEnabled = [];
+		let customFunctionsCreated = [];
+
+		const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+			lineNumbers: true,
+			mode: "javascript",
+			theme: "default",
+			viewportMargin: Infinity,
+			height: "auto"
+		});
+
+		const compiledOutputEditor = CodeMirror.fromTextArea(document.getElementById("compiledOutput"), {
+			lineNumbers: true,
+			mode: "javascript",
+			theme: "default",
+			readOnly: true,
+			viewportMargin: Infinity,
+			height: "auto"
+		});
+
+		const compileButton = document.getElementById("compileButton");
+		const evaluateButton = document.getElementById("evaluateButton");
+		const checkButton = document.getElementById("checkButton");
+		const optimizeButton = document.getElementById("optimizeButton");
+		const resultText = document.getElementById("resultText");
+		const checkboxContainer = document.getElementById("checkboxContainer");
+		const customFunctionName = document.getElementById("customFunctionName");
+		const customUrlFunctionName = document.getElementById("customUrlFunctionName");
+		const customFunctionCreateButton = document.getElementById("customFunctionCreateButton");
+
+		function externalFunctionsSet(key, enable) {
+			if (enable) {
+				if (! externalFunctionsEnabled.includes(key)) {
+					externalFunctionsEnabled.push(key);
+				}
+			} else {
+				externalFunctionsEnabled = externalFunctionsEnabled.filter(val => val !== key);
+			}
+		}
+
+		if (! (compileButton &&
+			   evaluateButton &&
+			   checkButton &&
+			   optimizeButton &&
+			   resultText &&
+			   checkboxContainer &&
+			   customFunctionName &&
+			   customUrlFunctionName &&
+			   customFunctionCreateButton)) {
+			throw new Error('Something is wrong!');
+		}
+		function customFunctionInputChangeCb(ev) {
+			let v = customFunctionName.value;
+			const ok = ((/^(\p{L}[\p{L}0-9_]*)$/u).test(v)) && (! customFunctionsCreated.includes(v)) && ((v !== customUrlFunctionName.value) || customUrlFunctionCreateButton.disabled);
+			customFunctionCreateButton.disabled = !ok;
+			customFunctionName.style.backgroundColor = (ok ? '#e0f2dc' : ((v === '') ? 'transparent' : '#f2dcdf'));
+			if (ev !== 'direct') customUrlFunctionInputChangeCb('direct');
+		}
+		customFunctionName.addEventListener("input", customFunctionInputChangeCb);
+
+		function customFunctionCreate(type) {
+			if (! ['json','url'].includes(type)) {
+				throw new Error('Bad type');
+			}
+			const name = ((type === 'json') ? customFunctionName : customUrlFunctionName).value;
+			const title = `Custom function: ${name}()`;
+			const valueUrl = ((type === 'url') ? urlTextInputValue['customUrlFunctionUrl'] : undefined);
+			var valueId;
+			var getValue;
+			if (type === 'json') {
+				getValue =	(() => { return jsonTextInputValue[valueId]; });
+			}
+			if (type === 'url') {
+				getValue = (async function(...av) {
+					try {
+						let url = valueUrl + '?call=' + encodeURIComponent(name);
+						for (let i = 0; i < av.length; i++) {
+							url += `&param${i+1}=${encodeURIComponent(JSON.stringify(av[i]))}`;
+						}
+						let r = await fetch(url, { method: 'GET' });
+						if (! r.ok) {
+							console.log(r);
+							throw new Error(`Fetch error '${r.status} ${r.statusText}'`);
+						}
+						let c = await r.text();
+						try {
+							c = JSON.parse(c);
+						} catch (e) {
+							c = undefined;
+						}
+						if (! ((c === null) || (c === false) || (c === true) || (typeof(c) === 'string') || Number.isFinite(c))) {
+							throw new Error(`Invalid response payload from '${url}'`);
+						}
+						return c;
+					} catch (e) {
+						console.log(e);
+						return null;
+					}
+				});
+			}
+			const key = registerCustomLookupFunction(name, title, getValue);
+			valueId = ((type === 'json') ? ('customFunctionValueInput_' + key) : undefined);
+			const label = document.createElement("label");
+			const span = document.createElement("span");
+			span.id = key;
+			const checkbox = document.createElement("input");
+			checkbox.type = "checkbox";
+			checkbox.value = key;
+			checkbox.addEventListener("change", () => {
+				if (checkbox.checked) {
+					externalFunctionsEnabled.push(key);
+				} else {
+					externalFunctionsEnabled = externalFunctionsEnabled.filter(val => val !== key);
+				}
+			});
+			span.innerHTML = `<span><a id="delete-${key}" title="DELETE">&#x1F5D1;</a>&nbsp;</span>`;
+			label.appendChild(checkbox);
+			if (type === 'json') {
+				let valueInput = document.createElement("input");
+				label.appendChild(document.createTextNode(" " + title + " returning: "));
+				valueInput.type = "text";
+				valueInput.id = valueId;
+				valueInput.setAttribute('class', "jsonTextInput");
+				label.appendChild(valueInput);
+			}
+			if (type === 'url') {
+				label.appendChild(document.createTextNode(" " + title + ` forwarding calls to ${valueUrl}`));
+			}
+			span.appendChild(label);
+			span.appendChild(document.createElement("br"));
+			checkboxContainer.appendChild(span);
+			if (type === 'json') {
+				customFunctionCreateButton.disabled = true;
+				customFunctionName.value = '';
+				customFunctionName.style.backgroundColor = 'transparent';
+			}
+			if (type === 'url') {
+				customUrlFunctionCreateButton.disabled = true;
+				customUrlFunctionName.value = '';
+				customUrlFunctionName.style.backgroundColor = 'transparent';
+				customUrlFunctionUrl.value = '';
+				customUrlFunctionUrl.style.backgroundColor = 'transparent';
+			}
+			customFunctionsCreated.push(name);
+			if (type === 'json') {
+				jsonTextInputActivate(valueId, null);
+			}
+			{
+				let a = document.getElementById(`delete-${key}`);
+				a.addEventListener("click", () => {
+					let e = document.getElementById(key);
+					e.parentNode.removeChild(e);
+					externalFunctionsSet(key, false);
+					delete scalariqExt[key];
+					customFunctionsCreated = customFunctionsCreated.filter((x)=>(x!==name));
+					customFunctionInputChangeCb('direct');
+					customUrlFunctionInputChangeCb('direct');
+				});
+			}
+			customFunctionInputChangeCb('direct');
+			customUrlFunctionInputChangeCb('direct');
+		}
+		function customFunctionCreateCb() {
+			return customFunctionCreate('json');
+		}
+		function customUrlFunctionCreateCb() {
+			return customFunctionCreate('url');
+		}
+		customFunctionCreateButton.addEventListener("click", customFunctionCreateCb);
+		customUrlFunctionCreateButton.addEventListener("click", customUrlFunctionCreateCb);
+		function customUrlFunctionInputChangeCb(ev) {
+			let v = customUrlFunctionName.value;
+			const ok = ((/^(\p{L}[\p{L}0-9_]*)$/u).test(v)) && (! customFunctionsCreated.includes(v)) && ((v !== customFunctionName.value) || customFunctionCreateButton.disabled);
+			customUrlFunctionCreateButton.disabled = !(ok && urlTextInputValue['customUrlFunctionUrl']);
+			customUrlFunctionName.style.backgroundColor = (ok ? '#e0f2dc' : ((v === '') ? 'transparent' : '#f2dcdf'));
+			if (ev !== 'direct') customFunctionInputChangeCb('direct');
+		}
+		urlTextInputActivate('customUrlFunctionUrl', null);
+		customUrlFunctionName.addEventListener("input", customUrlFunctionInputChangeCb);
+		customUrlFunctionUrl.addEventListener("input", customUrlFunctionInputChangeCb);
+		if (typeof scalariqExt !== 'undefined' && Object.keys(scalariqExt).length > 0) {
+			const title = document.createElement('strong');
+			title.textContent = 'Enable Evaluator Functions';
+			checkboxContainer.appendChild(title);
+			checkboxContainer.appendChild(document.createElement('br'));
+			Object.keys(scalariqExt).sort().forEach(key => {
+				const func = scalariqExt[key];
+				const label = document.createElement("label");
+				const checkbox = document.createElement("input");
+				checkbox.type = "checkbox";
+				checkbox.value = key;
+				checkbox.addEventListener("change", () => {
+					if (checkbox.checked) {
+						externalFunctionsEnabled.push(key);
+					} else {
+						externalFunctionsEnabled = externalFunctionsEnabled.filter(val => val !== key);
+					}
+				});
+				label.appendChild(checkbox);
+				label.appendChild(document.createTextNode(" " + func.name));
+				checkboxContainer.appendChild(label);
+				checkboxContainer.appendChild(document.createElement("br"));
+			});
+		}
+
+		compileButton.addEventListener("click", () => {
+			const input = editor.getValue();
+			try {
+				const compiled = compile(input); 
+				if (compiled) {
+					compiledOutputEditor.setValue(compiled);
+					evaluateButton.disabled = false;
+					checkButton.disabled = false;
+					optimizeButton.disabled = false;
+					resultText.textContent = "Compilation successful";
+				} else {
+					resultText.textContent = "Compilation failed.";
+					evaluateButton.disabled = true;
+					checkButton.disabled = true;
+					optimizeButton.disabled = true;
+				}
+			} catch (e) {
+				resultText.textContent = "Error during compilation: " + e.message;
+				evaluateButton.disabled = true;
+				checkButton.disabled = true;
+				optimizeButton.disabled = true;
+			}
+		});
+
+		editor.on("change", () => {
+			evaluateButton.disabled = true;
+			checkButton.disabled = true;
+			optimizeButton.disabled = true;
+			compiledOutputEditor.setValue("");
+		});
+
+		evaluateButton.addEventListener("click", async () => {
+			const compiledCode = compiledOutputEditor.getValue();
+			resultText.textContent = "Evaluating...";
+			try {
+				const result = await evaluate(compiledCode, externalFunctionsEnabled);
+				if (result) {
+					resultText.textContent = `Evaluation result: ${result}`;
+				} else {
+					resultText.textContent = "Evaluation failed.";
+				}
+			} catch (e) {
+				resultText.textContent = "Error during evaluation: " + e.message;
+			}
+		});
+
+		checkButton.addEventListener("click", () => {
+			const compiledCode = compiledOutputEditor.getValue();
+			try {
+				const result = check(compiledCode);
+				if (result) {
+					resultText.textContent = "Check result: " + result;
+				} else {
+					resultText.textContent = "Check failed.";
+				}
+			} catch (e) {
+				resultText.textContent = "Error during check: " + e.message;
+			}
+		});
+
+		optimizeButton.addEventListener("click", async () => {
+			const compiledCode = compiledOutputEditor.getValue();
+			resultText.textContent = "Optimizing...";
+			try {
+				const optimized = await optimize(compiledCode, externalFunctionsEnabled);
+				if (result) {
+					resultText.textContent = `Optimization done`;
+					compiledOutputEditor.setValue(optimized);
+				} else {
+					resultText.textContent = "Optimization failed.";
+				}
+			} catch (e) {
+				resultText.textContent = "Error during optimization: " + e.message;
+			}
+		});
+
+		(async function() {
+			let v;
+			try {
+				v = (await (await fetch('./js/package.json')).json())?.version;
+				if (typeof(v) !== 'string') throw new Error('Bad version');
+			} catch (e) {
+				v = '?';
+			}
+			let scalariqVersion = document.getElementById("scalariqVersion");
+			if (scalariqVersion) {
+				scalariqVersion.textContent = v;
+			}
+		})();
+	}));
+    </script>
+
+</body>
+</html>

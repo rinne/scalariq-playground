@@ -1,0 +1,13 @@
+#! /bin/sh
+
+if test -e ./export ; then
+  echo "You must purge the export directory to rebuild it." 1>&2
+  exit 1
+fi
+
+tmp="sc.$$"
+
+git clone https://github.com/rinne/node-scalariq.git "$tmp" && mkdir export && cp -r htdocs/* export && cp $(ls "$tmp"/*.js "$tmp"/package.json | grep -v '/index\.js$') export/js/
+
+rm -rf "sc.$$"
+

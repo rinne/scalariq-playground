@@ -10,6 +10,7 @@
     <script src="./js/lexer.js" defer></script>
     <script src="./js/parser.js" defer></script>
     <script src="./js/generator.js" defer></script>
+    <script src="./js/linearizer.js" defer></script>
     <script src="./js/evaluator.js" defer></script>
     <script src="./js/optimizer.js" defer></script>
     <script src="./js/scalariq-browser.js" defer></script>
@@ -24,6 +25,18 @@
             font-family: Arial, sans-serif;
             line-height: 1.6;
             margin: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            font-size: 2.5em;
+            color: #2c3e50;
+        }
+        header p {
+            font-size: 1.2em;
+            color: #555;
         }
         .text-box, #result {
             border: 1px solid #ccc;
@@ -85,13 +98,15 @@
 </head>
 <body>
 
+    <header>
+        <h1>ScalarIQ&#8482; Playground</h1>
+    </header>
+
     <!-- Region 1: Description -->
     <section>
-        <h2>Welcome to ScalarIQ Playground</h2>
         <p>
             This interactive playground allows you to explore the ScalarIQ language. 
             Simply enter your ScalarIQ code below, compile it, and evaluate the resulting output.
-            Enjoy.
         </p>
     </section>
 
@@ -137,14 +152,8 @@
     </section>
 
     <!-- Region 5: Footer -->
-    <footer>
-      <p>
-        Copyright&nbsp;&copy;&nbsp;2024&nbsp;Timo&nbsp;J.&nbsp;Rinne&nbsp;&lt;tri@iki.fi&gt;
-        <br/>
-        ScalarIQ&nbsp;version:&nbsp;<span id="scalariqVersion">?</span>
-        <br/>
-        <a href="https://github.com/rinne/node-scalariq#readme">More&nbsp;about&nbsp;ScalarIQ&nbsp;on&nbsp;GitHub</a>
-      </p>
+    <footer style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #777;">
+       Copyright &copy; 2024 Timo J. Rinne &lt;tri@iki.fi&gt;
     </footer>
 
     <script>
